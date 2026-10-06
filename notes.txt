@@ -1,0 +1,8 @@
+1. We first created the DOMAIN model[payment.py]
+    a. Defined the states enum/state machine
+    b. Allowed transitions between the states
+    c. Create domain specific error
+    d. Add validate_transitions()
+    e. Add __post_init__()
+2. Tested the domain model by writing the testcases
+3. Created persistence boundary using SQLAlchemy

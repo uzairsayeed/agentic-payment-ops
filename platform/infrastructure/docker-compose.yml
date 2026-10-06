@@ -1,0 +1,30 @@
+services:
+  postgres:
+    image: postgres:17
+
+    environment:
+      POSTGRES_DB: payment_ops
+      POSTGRES_USER: payment_user
+      POSTGRES_PASSWORD: payment_password
+
+    # 55432:5432
+    # │     │
+    # │     └── PostgreSQL port INSIDE the container
+    # │
+    # └──────── host port on your Mac
+
+    # So PostgreSQL still listens on 5432 inside Docker, but from your Mac you connect to: localhost:55432
+    ports:
+      - "55432:5432"
+
+    # without volumes:
+      # we could destroy the container and lose its database data.
+    # With the named volume:
+      # docker compose stop
+      # docker compose start
+      # doesn't wipe the database.
+    volumes:
+      - payment_postgres_data:/var/lib/postgresql/data
+
+volumes:
+  payment_postgres_data:
