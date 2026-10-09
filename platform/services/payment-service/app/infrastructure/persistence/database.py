@@ -9,7 +9,7 @@
 # PostgreSQL
 
 from sqlalchemy import create_engine
-
+from sqlalchemy.orm import sessionmaker
 # means:
     # postgresql+psycopg
             # ↓
@@ -45,4 +45,26 @@ DATABASE_URL = (
 
 engine = create_engine(
     DATABASE_URL,
+)
+
+# engine
+#    ↓
+# SessionFactory
+#    ↓
+# Session instance
+# Think of a Session as a unit of database work.
+
+# Why a factory?
+# We don't want one global Session reused forever
+# Instead:
+    # Use case A
+    # ↓
+    # Session A
+
+    # Use case B
+    # ↓
+    # Session B
+SessionFactory = sessionmaker(
+    bind=engine,
+    expire_on_commit=False,
 )

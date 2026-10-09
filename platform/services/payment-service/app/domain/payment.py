@@ -208,9 +208,18 @@ class Payment:
     status: PaymentStatus
     created_at: datetime
     updated_at: datetime
+
     events: list[PaymentEvent] = field(
         default_factory=list
     )
+
+    # Why underscore?
+        # Internal state owned by the Payment entity.
+    _pending_events: list[PaymentEvent] = field(
+        default_factory=list,
+        repr=False,
+    )
+
 
     @classmethod
     def create(
@@ -252,15 +261,16 @@ class Payment:
             updated_at=now,
         )
 
-        payment.events.append(
-            PaymentEvent(
-                event_type="PAYMENT_CREATED",
-                from_status=None,
-                to_status=PaymentStatus.CREATED,
-                occurred_at=now,
-            )
+        created_event = PaymentEvent(
+            event_type="PAYMENT_CREATED",
+            from_status=None,
+            to_status=PaymentStatus.CREATED,
+            occurred_at=now,
         )
 
+        payment.events.append(created_event)
+        payment._pending_events.append(created_event)
+        
         return payment
 
     @classmethod
@@ -287,6 +297,7 @@ class Payment:
             created_at=created_at,
             updated_at=updated_at,
             events=events,
+            _pending_events=[],
         )
 
     def transition_to(
@@ -306,11 +317,22 @@ class Payment:
         self.status = new_status
         self.updated_at = now
 
-        self.events.append(
-            PaymentEvent(
-                event_type=event_type,
-                from_status=previous_status,
-                to_status=new_status,
-                occurred_at=now,
-            )
+        event = PaymentEvent(
+            event_type=event_type,
+            from_status=previous_status,
+            to_status=new_status,
+            occurred_at=now,
         )
+
+        self.events.append(event)
+        self._pending_events.append(event)
+
+
+    @property
+    def pending_events(
+        self,
+    ) -> tuple[PaymentEvent, ...]:
+        return tuple(self._pending_events)
+
+    def mark_events_persisted(self) -> None:
+        self._pending_events.clear()

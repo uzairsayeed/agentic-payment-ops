@@ -7,6 +7,8 @@ from app.infrastructure.persistence.models import (
     PaymentEventRecord,
     PaymentRecord,
 )
+from sqlalchemy import select
+from sqlalchemy.orm import Session
 
 def to_payment_record(
     payment: Payment,
@@ -64,3 +66,102 @@ def to_domain_payment(
         updated_at=record.updated_at,
         events=events,
     )
+
+class SqlAlchemyPaymentRepository:
+    def __init__(
+        self,
+        session: Session,
+    ) -> None:
+        self._session = session
+
+    # add() should NOT call commit()
+    # We deliberately will not do that.
+    # Why?
+        # Imagine later creating a payment requires:
+            # insert payment
+            # insert payment event
+            # write audit record
+            # create some other record
+        # We may want: ALL succeed or ALL rollback
+        # If the repository internally commits after one step, the higher-level application cannot control atomicity.
+        # So our repository means:
+            # Stage database work in the current Session.
+
+        # It does not mean:
+            # Decide when the business transaction is finished.
+    def add(
+        self,
+        payment: Payment,
+    ) -> None:
+        payment_record = to_payment_record(
+            payment
+        )
+
+        self._session.add(
+            payment_record
+        )
+
+        # Push the parent INSERT to PostgreSQL first
+        # so the FK target exists before event rows are inserted.
+        # flush() is NOT commit()
+        # Explanation:
+            # session.add()
+            #     ↓
+            # Python Session knows about new object
+
+            # session.flush()
+            #     ↓
+            # SQL is sent to PostgreSQL
+            # BUT transaction is still open
+
+            # session.commit()
+            #     ↓
+            # transaction becomes permanent
+
+        # Why not just commit() after inserting the payment?
+            # That would be wrong:
+                # INSERT payment
+                # COMMIT              ← payment permanent
+
+                # INSERT event
+                # FAIL
+        self._session.flush()
+
+        for event in payment.events:
+            self._session.add(
+                to_event_record(
+                    payment.payment_id,
+                    event,
+                )
+            )
+
+    def get(
+        self,
+        payment_id: str,
+    ) -> Payment | None:
+        payment_record = self._session.get(
+            PaymentRecord,
+            payment_id,
+        )
+
+        if payment_record is None:
+            return None
+
+        event_records = list(
+            self._session.scalars(
+                select(PaymentEventRecord)
+                .where(
+                    PaymentEventRecord.payment_id
+                    == payment_id
+                )
+                .order_by(
+                    PaymentEventRecord.occurred_at,
+                    PaymentEventRecord.id,
+                )
+            )
+        )
+
+        return to_domain_payment(
+            payment_record,
+            event_records,
+        )

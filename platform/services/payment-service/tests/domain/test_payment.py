@@ -108,3 +108,46 @@ def test_payment_amount_must_be_positive() -> None:
             destination_currency="EUR",
             amount=Decimal("0"),
         )
+
+
+def test_new_payment_has_payment_created_as_pending_event() -> None:
+    payment = Payment.create(
+        beneficiary_id="BEN-001",
+        source_currency="USD",
+        destination_currency="EUR",
+        amount=Decimal("1000.00"),
+    )
+
+    assert len(payment.events) == 1
+    assert len(payment.pending_events) == 1
+
+    assert (
+        payment.pending_events[0].event_type
+        == "PAYMENT_CREATED"
+    )
+
+
+def test_transition_adds_new_pending_event() -> None:
+    payment = Payment.create(
+        beneficiary_id="BEN-001",
+        source_currency="USD",
+        destination_currency="EUR",
+        amount=Decimal("1000.00"),
+    )
+
+    payment.mark_events_persisted()
+
+    assert len(payment.pending_events) == 0
+
+    payment.transition_to(
+        PaymentStatus.COMPLIANCE_PENDING,
+        event_type="COMPLIANCE_STARTED",
+    )
+
+    assert len(payment.events) == 2
+    assert len(payment.pending_events) == 1
+
+    assert (
+        payment.pending_events[0].event_type
+        == "COMPLIANCE_STARTED"
+    )

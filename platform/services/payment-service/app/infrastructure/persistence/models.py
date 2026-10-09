@@ -45,6 +45,7 @@ class PaymentRecord(Base):
     status: Mapped[PaymentStatus] = mapped_column(
         Enum(
             PaymentStatus,
+            name="ck_payments_status",
             native_enum=False,
             create_constraint=True,
         ),
@@ -90,6 +91,7 @@ class PaymentEventRecord(Base):
     from_status: Mapped[PaymentStatus | None] = mapped_column(
         Enum(
             PaymentStatus,
+            name="ck_payment_events_from_status",
             native_enum=False,
             create_constraint=True,
         ),
@@ -99,6 +101,7 @@ class PaymentEventRecord(Base):
     to_status: Mapped[PaymentStatus] = mapped_column(
         Enum(
             PaymentStatus,
+            name="ck_payment_events_to_status",
             native_enum=False,
             create_constraint=True,
         ),
