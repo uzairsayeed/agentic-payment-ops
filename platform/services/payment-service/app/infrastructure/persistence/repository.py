@@ -127,7 +127,7 @@ class SqlAlchemyPaymentRepository:
                 # FAIL
         self._session.flush()
 
-        for event in payment.events:
+        for event in payment.pending_events:
             self._session.add(
                 to_event_record(
                     payment.payment_id,
@@ -165,3 +165,32 @@ class SqlAlchemyPaymentRepository:
             payment_record,
             event_records,
         )
+
+    def save(
+        self,
+        payment: Payment,
+    ) -> None:
+        payment_record = self._session.get(
+            PaymentRecord,
+            payment.payment_id,
+        )
+
+        if payment_record is None:
+            raise LookupError(
+                f"Payment {payment.payment_id} does not exist."
+            )
+
+        payment_record.beneficiary_id = payment.beneficiary_id
+        payment_record.source_currency = payment.source_currency
+        payment_record.destination_currency = payment.destination_currency
+        payment_record.amount = payment.amount
+        payment_record.status = payment.status
+        payment_record.updated_at = payment.updated_at
+
+        for event in payment.pending_events:
+            self._session.add(
+                to_event_record(
+                    payment.payment_id,
+                    event,
+                )
+            )
