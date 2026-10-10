@@ -14,18 +14,21 @@
     # Repository answers: How do I load and persist a Payment?
     # Unit of Work answers: Which repository operations belong to the same transaction?
 from types import TracebackType
-
-from app.infrastructure.persistence.database import SessionFactory
-from app.infrastructure.persistence.repository import (
-    SqlAlchemyPaymentRepository,
-)
 from sqlalchemy.orm import Session
 
 from app.application.ports.payment_repository import (
     PaymentRepository,
 )
+from app.infrastructure.persistence.database import SessionFactory
+from app.infrastructure.persistence.repository import (
+    SqlAlchemyPaymentRepository,
+)
+
 
 class SqlAlchemyUnitOfWork:
+    session: Session
+    payments: PaymentRepository
+    
     def __init__(
         self,
         session_factory=SessionFactory,
