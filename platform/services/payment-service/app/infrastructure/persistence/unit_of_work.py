@@ -19,7 +19,11 @@ from app.infrastructure.persistence.database import SessionFactory
 from app.infrastructure.persistence.repository import (
     SqlAlchemyPaymentRepository,
 )
+from sqlalchemy.orm import Session
 
+from app.application.ports.payment_repository import (
+    PaymentRepository,
+)
 
 class SqlAlchemyUnitOfWork:
     def __init__(

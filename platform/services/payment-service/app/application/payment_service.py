@@ -1,6 +1,8 @@
 from app.domain.payment import Payment, PaymentStatus
-from app.infrastructure.persistence.unit_of_work import (
-    SqlAlchemyUnitOfWork,
+from collections.abc import Callable
+
+from app.application.ports.unit_of_work import (
+    UnitOfWork,
 )
 
 class PaymentNotFoundError(LookupError):
@@ -10,7 +12,9 @@ class PaymentNotFoundError(LookupError):
 class PaymentApplicationService:
     def __init__(
         self,
-        unit_of_work_factory=SqlAlchemyUnitOfWork,
+        unit_of_work_factory: Callable[
+            [], UnitOfWork
+        ],
     ) -> None:
         self._unit_of_work_factory = (
             unit_of_work_factory
