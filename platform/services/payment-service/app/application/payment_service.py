@@ -1,5 +1,6 @@
 from app.domain.payment import Payment, PaymentStatus
 from collections.abc import Callable
+from decimal import Decimal
 
 from app.application.ports.unit_of_work import (
     UnitOfWork,
@@ -19,6 +20,44 @@ class PaymentApplicationService:
         self._unit_of_work_factory = (
             unit_of_work_factory
         )
+
+    def create_payment(
+        self,
+        beneficiary_id: str,
+        source_currency: str,
+        destination_currency: str,
+        amount: Decimal,
+    ) -> Payment:
+        # This invokes the domain.
+        # After this line:
+            # payment.status
+            # =
+            # CREATED
+        # and conceptually:
+            # events:
+            # PAYMENT_CREATED
+
+            # pending_events:
+            # PAYMENT_CREATED
+        payment = Payment.create(
+            beneficiary_id=beneficiary_id,
+            source_currency=source_currency,
+            destination_currency=destination_currency,
+            amount=amount,
+        )
+
+        # opens one persistence unit.
+            # SqlAlchemyUnitOfWork
+            #         ↓
+            # SQLAlchemy Session
+        with self._unit_of_work_factory() as uow:
+            uow.payments.add(payment)
+
+            uow.commit()
+
+        payment.mark_events_persisted()
+
+        return payment
 
     def start_compliance(
         self,

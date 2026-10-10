@@ -24,12 +24,14 @@ class FakePaymentRepository:
         }
 
         self.saved_payments: list[Payment] = []
+        self.added_payments: list[Payment] = []
 
     def add(
         self,
         payment: Payment,
     ) -> None:
         self._payments[payment.payment_id] = payment
+        self.added_payments.append(payment)
 
     def get(
         self,
@@ -178,3 +180,67 @@ def test_start_compliance_does_not_commit_invalid_transition() -> None:
     assert uow.rolled_back is True
 
     assert repository.saved_payments == []
+
+def test_create_payment_adds_and_commits() -> None:
+    repository = FakePaymentRepository()
+
+    uow = FakeUnitOfWork(
+        payments=repository
+    )
+
+    service = PaymentApplicationService(
+        unit_of_work_factory=lambda: uow
+    )
+
+    payment = service.create_payment(
+        beneficiary_id="BEN-001",
+        source_currency="usd",
+        destination_currency="eur",
+        amount=Decimal("1000.00"),
+    )
+
+    assert payment.status == PaymentStatus.CREATED
+
+    assert payment.source_currency == "USD"
+    assert payment.destination_currency == "EUR"
+
+    assert len(repository.added_payments) == 1
+
+    assert (
+        repository.added_payments[0].payment_id
+        == payment.payment_id
+    )
+
+    assert uow.committed is True
+    assert uow.rolled_back is False
+
+    assert [
+        event.event_type
+        for event in payment.events
+    ] == [
+        "PAYMENT_CREATED"
+    ]
+
+    assert len(payment.pending_events) == 0
+
+def test_create_payment_rejects_non_positive_amount() -> None:
+    repository = FakePaymentRepository()
+
+    uow = FakeUnitOfWork(
+        payments=repository
+    )
+
+    service = PaymentApplicationService(
+        unit_of_work_factory=lambda: uow
+    )
+
+    with pytest.raises(ValueError):
+        service.create_payment(
+            beneficiary_id="BEN-001",
+            source_currency="USD",
+            destination_currency="EUR",
+            amount=Decimal("-100.00"),
+        )
+
+    assert repository.added_payments == []
+    assert uow.committed is False
