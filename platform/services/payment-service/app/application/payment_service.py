@@ -1,9 +1,7 @@
 from app.domain.payment import Payment, PaymentStatus
-from app.infrastructure.persistence.database import SessionFactory
-from app.infrastructure.persistence.repository import (
-    SqlAlchemyPaymentRepository,
+from app.infrastructure.persistence.unit_of_work import (
+    SqlAlchemyUnitOfWork,
 )
-
 
 class PaymentNotFoundError(LookupError):
     pass
@@ -12,20 +10,29 @@ class PaymentNotFoundError(LookupError):
 class PaymentApplicationService:
     def __init__(
         self,
-        session_factory=SessionFactory,
+        unit_of_work_factory=SqlAlchemyUnitOfWork,
     ) -> None:
-        self._session_factory = session_factory
+        self._unit_of_work_factory = (
+            unit_of_work_factory
+        )
 
     def start_compliance(
         self,
         payment_id: str,
     ) -> Payment:
-        with self._session_factory.begin() as session:
-            repository = SqlAlchemyPaymentRepository(
-                session
-            )
+        with self._unit_of_work_factory() as uow:
+            # uow
+            # ↓
+            # SqlAlchemyUnitOfWork instance
 
-            payment = repository.get(
+            # uow.payments
+            # ↓
+            # SqlAlchemyPaymentRepository instance
+
+            # uow.payments.save(payment)
+            # ↓
+            # call save() on that repository
+            payment = uow.payments.get(
                 payment_id
             )
 
@@ -39,9 +46,10 @@ class PaymentApplicationService:
                 event_type="COMPLIANCE_STARTED",
             )
 
-            repository.save(payment)
+            uow.payments.save(payment)
 
-        # Reaching here means the transaction committed.
+            uow.commit()
+
         payment.mark_events_persisted()
 
         return payment
