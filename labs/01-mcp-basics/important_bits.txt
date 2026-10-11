@@ -1,0 +1,3 @@
+tools are model-controlled, resources are application-controlled, and prompts are user-controlled. MCP Python SDK
+
+A failure should be understood in the layer where it originates, but translated into HTTP only at the HTTP boundary.
