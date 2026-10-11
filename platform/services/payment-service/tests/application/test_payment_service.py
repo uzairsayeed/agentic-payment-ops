@@ -10,6 +10,7 @@ from app.domain.payment import (
     InvalidPaymentTransition,
     Payment,
     PaymentStatus,
+    InvalidPaymentData
 )
 
 
@@ -234,7 +235,7 @@ def test_create_payment_rejects_non_positive_amount() -> None:
         unit_of_work_factory=lambda: uow
     )
 
-    with pytest.raises(ValueError):
+    with pytest.raises(InvalidPaymentData):
         service.create_payment(
             beneficiary_id="BEN-001",
             source_currency="USD",

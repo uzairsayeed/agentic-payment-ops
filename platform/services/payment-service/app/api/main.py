@@ -10,9 +10,19 @@ from decimal import Decimal
 
 from fastapi import FastAPI
 from pydantic import BaseModel
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
 
 from app.bootstrap import (
     build_payment_application_service,
+)
+
+from app.application.payment_service import (
+    PaymentNotFoundError,
+)
+from app.domain.payment import (
+    InvalidPaymentData,
+    InvalidPaymentTransition,
 )
 
 class CreatePaymentRequest(BaseModel):
@@ -29,11 +39,56 @@ class PaymentResponse(BaseModel):
     amount: Decimal
     status: str
 
+class ErrorResponse(BaseModel):
+    error: str
+    message: str
+
 app = FastAPI(
     title="Payment Operations Service",
 )
 
 payment_service = build_payment_application_service()
+
+# Anywhere in this FastAPI application, this domain failure maps this way.
+@app.exception_handler(InvalidPaymentData)
+async def handle_invalid_payment_data(
+    request: Request,
+    exc: InvalidPaymentData,
+) -> JSONResponse:
+    return JSONResponse(
+        status_code=400,
+        content={
+            "error": "INVALID_PAYMENT_DATA",
+            "message": str(exc),
+        },
+    )
+
+@app.exception_handler(PaymentNotFoundError)
+async def handle_payment_not_found(
+    request: Request,
+    exc: PaymentNotFoundError,
+) -> JSONResponse:
+    return JSONResponse(
+        status_code=404,
+        content={
+            "error": "PAYMENT_NOT_FOUND",
+            "message": str(exc),
+        },
+    )
+
+@app.exception_handler(InvalidPaymentTransition)
+async def handle_invalid_payment_transition(
+    request: Request,
+    exc: InvalidPaymentTransition,
+) -> JSONResponse:
+    return JSONResponse(
+        status_code=409,
+        content={
+            "error": "INVALID_PAYMENT_TRANSITION",
+            "message": str(exc),
+        },
+    )
+
 
 @app.post(
     "/payments",

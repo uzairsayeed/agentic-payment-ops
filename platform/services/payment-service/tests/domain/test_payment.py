@@ -5,6 +5,7 @@ from app.domain.payment import (
     InvalidPaymentTransition,
     Payment,
     PaymentStatus,
+    InvalidPaymentData
 )
 
 def test_new_payment_starts_in_created_state() -> None:
@@ -99,7 +100,7 @@ def test_payment_cannot_jump_from_created_to_completed() -> None:
 
 def test_payment_amount_must_be_positive() -> None:
     with pytest.raises(
-        ValueError,
+        InvalidPaymentData,
         match="greater than zero",
     ):
         Payment.create(

@@ -51,6 +51,9 @@ class PaymentStatus(StrEnum):
 class InvalidPaymentTransition(ValueError):
     pass
 
+class InvalidPaymentData(ValueError):
+    pass
+
 ALLOWED_TRANSITIONS: dict[
     PaymentStatus,
     set[PaymentStatus],
@@ -231,7 +234,7 @@ class Payment:
         amount: Decimal,
     ) -> "Payment":
         if amount <= 0:
-            raise ValueError(
+            raise InvalidPaymentData(
                 "Payment amount must be greater than zero."
             )
 
@@ -239,12 +242,12 @@ class Payment:
         destination_currency = destination_currency.upper()
 
         if len(source_currency) != 3:
-            raise ValueError(
+            raise InvalidPaymentData(
                 "Source currency must be a 3-letter code."
             )
 
         if len(destination_currency) != 3:
-            raise ValueError(
+            raise InvalidPaymentData(
                 "Destination currency must be a 3-letter code."
             )
 
