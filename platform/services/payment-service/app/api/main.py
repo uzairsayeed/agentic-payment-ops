@@ -23,6 +23,7 @@ from app.application.payment_service import (
 from app.domain.payment import (
     InvalidPaymentData,
     InvalidPaymentTransition,
+    Payment
 )
 
 class CreatePaymentRequest(BaseModel):
@@ -42,6 +43,18 @@ class PaymentResponse(BaseModel):
 class ErrorResponse(BaseModel):
     error: str
     message: str
+
+def to_payment_response(
+    payment: Payment,
+) -> PaymentResponse:
+    return PaymentResponse(
+        payment_id=payment.payment_id,
+        beneficiary_id=payment.beneficiary_id,
+        source_currency=payment.source_currency,
+        destination_currency=payment.destination_currency,
+        amount=payment.amount,
+        status=payment.status.value,
+    )
 
 app = FastAPI(
     title="Payment Operations Service",
@@ -105,11 +118,45 @@ def create_payment(
         amount=request.amount,
     )
 
-    return PaymentResponse(
-        payment_id=payment.payment_id,
-        beneficiary_id=payment.beneficiary_id,
-        source_currency=payment.source_currency,
-        destination_currency=payment.destination_currency,
-        amount=payment.amount,
-        status=payment.status.value,
+    return to_payment_response(payment)
+
+@app.get(
+    "/payments/{payment_id}",
+    response_model=PaymentResponse,
+)
+def get_payment(
+    payment_id: str,
+) -> PaymentResponse:
+    payment = payment_service.get_payment(
+        payment_id
     )
+
+    return to_payment_response(payment)
+
+# POST /payments/{id}/compliance
+#             ↓
+# PaymentApplicationService.start_compliance()
+#             ↓
+# uow.payments.get()
+#             ↓
+# Payment.transition_to(
+#     COMPLIANCE_PENDING
+# )
+#             ↓
+# uow.payments.save()
+#             ↓
+# uow.commit()
+#             ↓
+# 200
+@app.post(
+    "/payments/{payment_id}/compliance",
+    response_model=PaymentResponse,
+)
+def start_compliance(
+    payment_id: str,
+) -> PaymentResponse:
+    payment = payment_service.start_compliance(
+        payment_id
+    )
+
+    return to_payment_response(payment)

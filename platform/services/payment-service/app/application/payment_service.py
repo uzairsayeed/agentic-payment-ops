@@ -96,3 +96,17 @@ class PaymentApplicationService:
         payment.mark_events_persisted()
 
         return payment
+
+    def get_payment(
+        self,
+        payment_id: str,
+    ) -> Payment:
+        with self._unit_of_work_factory() as uow:
+            payment = uow.payments.get(payment_id)
+
+            if payment is None:
+                raise PaymentNotFoundError(
+                    f"Payment {payment_id} does not exist."
+                )
+
+            return payment

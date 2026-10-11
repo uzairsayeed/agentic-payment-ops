@@ -245,3 +245,54 @@ def test_create_payment_rejects_non_positive_amount() -> None:
 
     assert repository.added_payments == []
     assert uow.committed is False
+
+
+def test_get_payment_returns_existing_payment() -> None:
+    payment = Payment.create(
+        beneficiary_id="BEN-001",
+        source_currency="USD",
+        destination_currency="EUR",
+        amount=Decimal("1000.00"),
+    )
+
+    payment.mark_events_persisted()
+
+    repository = FakePaymentRepository(
+        payments=[payment]
+    )
+
+    uow = FakeUnitOfWork(
+        payments=repository
+    )
+
+    service = PaymentApplicationService(
+        unit_of_work_factory=lambda: uow
+    )
+
+    result = service.get_payment(
+        payment.payment_id
+    )
+
+    assert result.payment_id == payment.payment_id
+    assert result.status == PaymentStatus.CREATED
+
+    assert uow.committed is False
+
+def test_get_payment_raises_when_payment_missing() -> None:
+    repository = FakePaymentRepository()
+
+    uow = FakeUnitOfWork(
+        payments=repository
+    )
+
+    service = PaymentApplicationService(
+        unit_of_work_factory=lambda: uow
+    )
+
+    with pytest.raises(PaymentNotFoundError):
+        service.get_payment(
+            "PAY-DOES-NOT-EXIST"
+        )
+
+    assert uow.committed is False
+    assert uow.rolled_back is True
