@@ -10,7 +10,14 @@ from decimal import Decimal
 
 from fastapi import FastAPI
 from pydantic import BaseModel
-from fastapi import FastAPI, Request
+from typing import Annotated
+
+from fastapi import (
+    Depends,
+    FastAPI,
+    Request,
+)
+
 from fastapi.responses import JSONResponse
 
 from app.bootstrap import (
@@ -18,6 +25,7 @@ from app.bootstrap import (
 )
 
 from app.application.payment_service import (
+    PaymentApplicationService,
     PaymentNotFoundError,
 )
 from app.domain.payment import (
@@ -25,6 +33,25 @@ from app.domain.payment import (
     InvalidPaymentTransition,
     Payment
 )
+
+app = FastAPI(
+    title="Payment Operations Service",
+)
+
+# Dependency injection : route needs a PaymentApplicationService, and production and tests should be able to supply different implementations/configurations.
+def get_payment_service(
+) -> PaymentApplicationService:
+    return build_payment_application_service()
+
+# Depends(get_payment_service) means:
+    # Before calling this route, FastAPI should obtain the route's PaymentApplicationService by calling get_payment_service().
+    # This is FastAPI-level dependency injection.
+# Dependency Injection (Present in this file): route doesn't construct what it needs itself.
+# Dependency Override (Present in test_payments_api.py): test replaces how that dependency is provided.
+PaymentServiceDependency = Annotated[
+    PaymentApplicationService,
+    Depends(get_payment_service),
+]
 
 class CreatePaymentRequest(BaseModel):
     beneficiary_id: str
@@ -55,12 +82,6 @@ def to_payment_response(
         amount=payment.amount,
         status=payment.status.value,
     )
-
-app = FastAPI(
-    title="Payment Operations Service",
-)
-
-payment_service = build_payment_application_service()
 
 # Anywhere in this FastAPI application, this domain failure maps this way.
 @app.exception_handler(InvalidPaymentData)
@@ -110,6 +131,7 @@ async def handle_invalid_payment_transition(
 )
 def create_payment(
     request: CreatePaymentRequest,
+    payment_service: PaymentServiceDependency,
 ) -> PaymentResponse:
     payment = payment_service.create_payment(
         beneficiary_id=request.beneficiary_id,
@@ -126,6 +148,7 @@ def create_payment(
 )
 def get_payment(
     payment_id: str,
+    payment_service: PaymentServiceDependency,
 ) -> PaymentResponse:
     payment = payment_service.get_payment(
         payment_id
@@ -154,6 +177,7 @@ def get_payment(
 )
 def start_compliance(
     payment_id: str,
+    payment_service: PaymentServiceDependency,
 ) -> PaymentResponse:
     payment = payment_service.start_compliance(
         payment_id
