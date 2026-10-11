@@ -1,8 +1,331 @@
-1. We first created the DOMAIN model[payment.py]
-    a. Defined the states enum/state machine
-    b. Allowed transitions between the states
-    c. Create domain specific error
-    d. Add validate_transitions()
-    e. Add __post_init__()
-2. Tested the domain model by writing the testcases
-3. Created persistence boundary using SQLAlchemy
+1. DEFINE PAYMENT DOMAIN
+   File:
+   platform/services/payment-service/
+   app/domain/payment.py
+
+   Contains:
+   - Payment
+   - PaymentStatus
+   - PaymentEvent
+   - InvalidPaymentData
+   - InvalidPaymentTransition
+
+        ↓
+
+2. DEFINE PAYMENT STATE MACHINE
+   File:
+   app/domain/payment.py
+
+   Lifecycle:
+   CREATED
+      ↓
+   COMPLIANCE_PENDING
+      ↓
+   COMPLIANCE_PASSED / REJECTED
+      ↓
+   SUBMITTED
+      ↓
+   PROCESSING
+      ↓
+   COMPLETED / FAILED
+
+   Domain owns which transitions are legal.
+
+        ↓
+
+3. DEFINE DATABASE MODELS
+   Files:
+   app/infrastructure/persistence/base.py
+   app/infrastructure/persistence/models.py
+
+   Tables:
+   payments
+   → current Payment state
+
+   payment_events
+   → historical state transitions
+
+        ↓
+
+4. DATABASE CONNECTION + SESSION FACTORY
+   File:
+   app/infrastructure/persistence/database.py
+
+   Contains:
+   - SQLAlchemy engine
+   - SessionFactory
+
+        ↓
+
+5. DATABASE SCHEMA CREATION
+   File:
+   app/infrastructure/persistence/schema.py
+
+   Uses:
+   Base.metadata.create_all(...)
+
+   For now:
+   ORM metadata creates the schema.
+
+        ↓
+
+6. REPOSITORY
+   Contract:
+   app/application/ports/payment_repository.py
+
+   Implementation:
+   app/infrastructure/persistence/repository.py
+
+   Main operations:
+   - add(payment)
+   - get(payment_id)
+   - save(payment)
+
+   Also contains mapping between:
+   Domain Payment
+      ↕
+   SQLAlchemy records
+
+        ↓
+
+7. UNIT OF WORK
+   Contract:
+   app/application/ports/unit_of_work.py
+
+   Implementation:
+   app/infrastructure/persistence/unit_of_work.py
+
+   Owns:
+   - Session lifecycle
+   - repository creation
+   - commit
+   - rollback
+   - close
+
+        ↓
+
+8. APPLICATION SERVICE
+   File:
+   app/application/payment_service.py
+
+   Current use cases:
+   - create_payment()
+   - get_payment()
+   - start_compliance()
+
+   Coordinates:
+   Domain
+      +
+   Repository
+      +
+   Unit of Work
+
+        ↓
+
+9. COMPOSITION / WIRING
+   File:
+   app/bootstrap.py
+
+   Connects:
+
+   PaymentApplicationService
+          +
+   SqlAlchemyUnitOfWork
+
+   This is where concrete infrastructure gets wired
+   into the application.
+
+        ↓
+
+10. HTTP API
+    File:
+    app/api/main.py
+
+    Current endpoints:
+
+    POST /payments
+
+    GET /payments/{payment_id}
+
+    POST /payments/{payment_id}/compliance
+
+    HTTP layer handles:
+    - request parsing
+    - response serialization
+    - dependency injection
+    - HTTP-specific error translation
+
+        ↓
+
+11. HTTP ERROR MODEL
+    Main files:
+
+    app/domain/payment.py
+    → InvalidPaymentData
+    → InvalidPaymentTransition
+
+    app/application/payment_service.py
+    → PaymentNotFoundError
+
+    app/api/main.py
+    → converts internal errors to HTTP
+
+    Mapping:
+
+    malformed request
+    → 422
+
+    invalid business data
+    → 400
+
+    payment missing
+    → 404
+
+    invalid transition
+    → 409
+
+    unexpected failure
+    → 500
+
+        ↓
+
+12. DOMAIN TESTS
+    File:
+    tests/domain/test_payment.py
+
+    Proves:
+    - creation rules
+    - valid transitions
+    - invalid transitions
+    - event generation
+    - pending-event behavior
+
+        ↓
+
+13. APPLICATION TESTS
+    File:
+    tests/application/test_payment_service.py
+
+    Shared fakes:
+    tests/fakes/payment_persistence.py
+
+    Proves:
+    - correct use-case coordination
+    - repository called correctly
+    - commit/rollback behavior
+    - failure handling
+
+        ↓
+
+14. REPOSITORY + POSTGRESQL INTEGRATION TESTS
+    File:
+    tests/integration/test_payment_repository.py
+
+    Proves:
+    - real SQLAlchemy mapping
+    - real PostgreSQL persistence
+    - event persistence
+    - transaction rollback
+
+        ↓
+
+15. HTTP CONTRACT TESTS
+    File:
+    tests/api/test_payments_api.py
+
+    Uses:
+    TestClient
+      ↓
+    FastAPI
+      ↓
+    real Application Service
+      ↓
+    fake persistence
+
+    Proves:
+    - 201
+    - 400
+    - 404
+    - 409
+    - 422
+    - response contracts
+
+        ↓
+
+16. HTTP + REAL POSTGRESQL INTEGRATION TESTS
+    File:
+    tests/integration/api/
+    test_payments_api_postgres.py
+
+    Uses:
+
+    TestClient
+       ↓
+    FastAPI
+       ↓
+    Application
+       ↓
+    SqlAlchemyUnitOfWork
+       ↓
+    SqlAlchemyPaymentRepository
+       ↓
+    payment_ops_test PostgreSQL
+
+    Proves the real stack works together.
+
+        ↓
+
+17. CURRENT PAYMENT SERVICE BOUNDARY
+
+    Main entry:
+    app/api/main.py
+
+              HTTP Client
+                   ↓
+                FastAPI
+                   ↓
+       PaymentApplicationService
+        app/application/payment_service.py
+                   ↓
+             UnitOfWork
+        application/ports/unit_of_work.py
+                   ↓
+          PaymentRepository
+        application/ports/payment_repository.py
+                   ↓
+       SQLAlchemy implementations
+        infrastructure/persistence/*
+                   ↓
+              PostgreSQL
+
+                   +
+
+               Domain
+         app/domain/payment.py
+
+
+Shorter version to keep in mind:
+
+payment.py
+Domain + state machine
+        ↓
+models.py
+DB representation
+        ↓
+repository.py
+Load/save Payment
+        ↓
+unit_of_work.py
+Transaction boundary
+        ↓
+payment_service.py
+Business use cases
+        ↓
+bootstrap.py
+Wire implementations
+        ↓
+main.py
+HTTP adapter
+        ↓
+tests/*
+Verify each layer
