@@ -1,0 +1,11 @@
+[project]
+name = "payment-server"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "httpx2>=2.13.1",
+    "mcp[cli]>=2.3.0",
+    "pydantic>=2.14.0",
+]
